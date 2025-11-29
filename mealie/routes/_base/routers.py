@@ -24,6 +24,27 @@ class UserAPIRouter(APIRouter):
         super().__init__(tags=tags, prefix=prefix, dependencies=[Depends(get_current_user)], **kwargs)
 
 
+class OptionalUserAPIRouter(APIRouter):
+    """
+    Router that conditionally requires authentication based on:
+    - GLOBAL_PUBLIC_RECIPES setting
+    - HTTP method (GET = optional, POST/PUT/DELETE = required)
+
+    Used for recipe and related endpoints to enable public access
+    while protecting write operations.
+    """
+
+    def __init__(self, tags: list[str | Enum] | None = None, prefix: str = "", **kwargs):
+        from mealie.core.dependencies import get_current_user_or_anonymous
+
+        super().__init__(
+            tags=tags,
+            prefix=prefix,
+            dependencies=[Depends(get_current_user_or_anonymous)],
+            **kwargs
+        )
+
+
 class MealieCrudRoute(APIRoute):
     """Route class to include the last-modified header when returning a MealieModel, when available"""
 

@@ -27,7 +27,7 @@ from mealie.core.dependencies import (
 from mealie.pkgs import cache
 from mealie.repos.all_repositories import get_repositories
 from mealie.routes._base import controller
-from mealie.routes._base.routers import MealieCrudRoute, UserAPIRouter
+from mealie.routes._base.routers import MealieCrudRoute, OptionalUserAPIRouter
 from mealie.schema.cookbook.cookbook import ReadCookBook
 from mealie.schema.make_dependable import make_dependable
 from mealie.schema.recipe import Recipe, ScrapeRecipe, ScrapeRecipeData
@@ -71,7 +71,7 @@ from mealie.services.scraper.scraper_strategies import (
 
 from ._base import BaseRecipeController, JSONBytes
 
-router = UserAPIRouter(prefix="/recipes", route_class=MealieCrudRoute)
+router = OptionalUserAPIRouter(prefix="/recipes", route_class=MealieCrudRoute)
 
 
 @controller(router)
@@ -275,20 +275,39 @@ class RecipeController(BaseRecipeController):
         # We use "group_recipes" here so we can return all recipes regardless of household. The query filter can
         # include a household_id to filter by household.
         # We use "by_user" so we can sort favorites and other user-specific data correctly.
-        pagination_response = self.group_recipes.by_user(self.user.id).page_all(
-            pagination=q,
-            cookbook=cookbook_data,
-            categories=categories,
-            tags=tags,
-            tools=tools,
-            foods=foods,
-            households=households,
-            require_all_categories=search_query.require_all_categories,
-            require_all_tags=search_query.require_all_tags,
-            require_all_tools=search_query.require_all_tools,
-            require_all_foods=search_query.require_all_foods,
-            search=search_query.search,
-        )
+        # When GLOBAL_PUBLIC_RECIPES is enabled and user is None (anonymous), return all recipes without user filtering.
+        if self.user is None:
+            # Anonymous access - return all recipes across all groups
+            pagination_response = self.repos.recipes.page_all(
+                pagination=q,
+                cookbook=cookbook_data if cookbook_data else None,
+                categories=categories,
+                tags=tags,
+                tools=tools,
+                foods=foods,
+                households=households,
+                require_all_categories=search_query.require_all_categories,
+                require_all_tags=search_query.require_all_tags,
+                require_all_tools=search_query.require_all_tools,
+                require_all_foods=search_query.require_all_foods,
+                search=search_query.search,
+            )
+        else:
+            # Authenticated access - existing behavior with user-specific data
+            pagination_response = self.group_recipes.by_user(self.user.id).page_all(
+                pagination=q,
+                cookbook=cookbook_data,
+                categories=categories,
+                tags=tags,
+                tools=tools,
+                foods=foods,
+                households=households,
+                require_all_categories=search_query.require_all_categories,
+                require_all_tags=search_query.require_all_tags,
+                require_all_tools=search_query.require_all_tools,
+                require_all_foods=search_query.require_all_foods,
+                search=search_query.search,
+            )
 
         # merge default pagination with the request's query params
         query_params = q.model_dump() | {**request.query_params}
@@ -309,11 +328,20 @@ class RecipeController(BaseRecipeController):
         foods: list[UUID4] | None = Query(None),
         tools: list[UUID4] | None = Query(None),
     ) -> RecipeSuggestionResponse:
-        group_recipes_by_user = get_repositories(
-            self.session, group_id=self.group_id, household_id=None
-        ).recipes.by_user(self.user.id)
+        # When GLOBAL_PUBLIC_RECIPES is enabled and user is None (anonymous), return suggestions without user filtering
+        if self.user is None:
+            # Anonymous access - use ungrouped repos
+            group_recipes = get_repositories(
+                self.session, group_id=None, household_id=None
+            ).recipes
+            recipes = group_recipes.find_suggested_recipes(q, foods, tools)
+        else:
+            # Authenticated access - existing behavior with user-specific data
+            group_recipes_by_user = get_repositories(
+                self.session, group_id=self.group_id, household_id=None
+            ).recipes.by_user(self.user.id)
+            recipes = group_recipes_by_user.find_suggested_recipes(q, foods, tools)
 
-        recipes = group_recipes_by_user.find_suggested_recipes(q, foods, tools)
         response = RecipeSuggestionResponse(items=recipes)
         json_compatible_response = orjson.dumps(response.model_dump(by_alias=True))
 

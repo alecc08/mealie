@@ -24,6 +24,7 @@ class AppInfo(MealieModel):
     enable_openai: bool
     enable_openai_image_services: bool
     token_time: int
+    global_public_recipes: bool
 
 
 class AppTheme(MealieModel):

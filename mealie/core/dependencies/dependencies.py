@@ -123,6 +123,41 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_or_anonymous(
+    request: Request,
+    token: str | None = Depends(oauth2_scheme_soft_fail),
+    session=Depends(generate_session),
+) -> PrivateUser | None:
+    """
+    Returns current user if authenticated, or None if:
+    - GLOBAL_PUBLIC_RECIPES is enabled AND
+    - Request method is GET/HEAD/OPTIONS (read-only)
+
+    For write operations or when flag is disabled, requires authentication.
+
+    This enables anonymous read access to recipe endpoints when the global flag is set,
+    while still requiring authentication for write operations.
+
+    Args:
+        request: FastAPI request object
+        token: Optional JWT token
+        session: Database session
+
+    Returns:
+        PrivateUser if authenticated, None if anonymous access allowed
+
+    Raises:
+        HTTPException 401 if GLOBAL_PUBLIC_RECIPES is False and no valid token provided
+    """
+    # Check if this is a read-only operation with global public enabled
+    if settings.GLOBAL_PUBLIC_RECIPES and request.method in ["GET", "HEAD", "OPTIONS"]:
+        # Try to get user, but allow None (anonymous)
+        return await try_get_current_user(request, token, session)
+
+    # For write operations or when disabled, require authentication
+    return await get_current_user(request, token, session)
+
+
 async def get_integration_id(token: str = Depends(oauth2_scheme)) -> str:
     try:
         decoded_token = jwt.decode(token, settings.SECRET, algorithms=[ALGORITHM])
@@ -130,6 +165,21 @@ async def get_integration_id(token: str = Depends(oauth2_scheme)) -> str:
 
     except PyJWTError as e:
         raise credentials_exception from e
+
+
+async def get_integration_id_or_default(token: str | None = Depends(oauth2_scheme_soft_fail)) -> str:
+    """
+    Returns the integration ID from the token, or DEFAULT_INTEGRATION_ID if no token.
+    Used in controllers that support both authenticated and anonymous access.
+    """
+    if not token:
+        return DEFAULT_INTEGRATION_ID
+
+    try:
+        decoded_token = jwt.decode(token, settings.SECRET, algorithms=[ALGORITHM])
+        return decoded_token.get("integration_id", DEFAULT_INTEGRATION_ID)
+    except PyJWTError:
+        return DEFAULT_INTEGRATION_ID
 
 
 async def get_admin_user(current_user: PrivateUser = Depends(get_current_user)) -> PrivateUser:

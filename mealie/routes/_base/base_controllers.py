@@ -9,7 +9,9 @@ from mealie.core.config import get_app_dirs, get_app_settings
 from mealie.core.dependencies.dependencies import (
     get_admin_user,
     get_current_user,
+    get_current_user_or_anonymous,
     get_integration_id,
+    get_integration_id_or_default,
     get_public_group,
 )
 from mealie.core.exceptions import mealie_registered_exceptions
@@ -132,14 +134,17 @@ class BaseUserController(_BaseController):
     This is a base class for all User restricted controllers in the API.
     It includes the common SharedDependencies and some common methods used
     by all Admin controllers.
+
+    When used with OptionalUserAPIRouter, user may be None for anonymous GET requests
+    when GLOBAL_PUBLIC_RECIPES is enabled.
     """
 
-    user: PrivateUser = Depends(get_current_user)
-    integration_id: str = Depends(get_integration_id)
+    user: PrivateUser | None = Depends(get_current_user_or_anonymous)
+    integration_id: str = Depends(get_integration_id_or_default)
     translator: Translator = Depends(local_provider)
 
     # Manual Cache
-    _checks: OperationChecks
+    _checks: OperationChecks | None = None
 
     def registered_exceptions(self, ex: type[Exception]) -> str:
         registered = {
@@ -148,23 +153,29 @@ class BaseUserController(_BaseController):
         return registered.get(ex, self.t("generic.server-error"))
 
     @property
-    def group_id(self) -> UUID4:
-        return self.user.group_id
+    def group_id(self) -> UUID4 | None:
+        return self.user.group_id if self.user else None
 
     @property
-    def household_id(self) -> UUID4:
-        return self.user.household_id
+    def household_id(self) -> UUID4 | None:
+        return self.user.household_id if self.user else None
 
     @property
-    def group(self) -> GroupInDB:
+    def group(self) -> GroupInDB | None:
+        if not self.user:
+            return None
         return self.repos.groups.get_one(self.group_id)
 
     @property
-    def household(self) -> HouseholdInDB:
+    def household(self) -> HouseholdInDB | None:
+        if not self.user:
+            return None
         return self.repos.households.get_one(self.household_id)
 
     @property
-    def checks(self) -> OperationChecks:
+    def checks(self) -> OperationChecks | None:
+        if not self.user:
+            return None
         if not self._checks:
             self._checks = OperationChecks(self.user)
         return self._checks

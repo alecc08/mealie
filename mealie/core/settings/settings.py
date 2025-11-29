@@ -139,6 +139,15 @@ class AppSettings(AppLoggingSettings):
     ALLOW_SIGNUP: bool = False
     ALLOW_PASSWORD_LOGIN: bool = True
 
+    GLOBAL_PUBLIC_RECIPES: bool = False
+    """
+    When enabled, makes ALL recipes publicly accessible without authentication.
+    This bypasses group private, household private, and recipe public flags.
+    Only affects read operations (GET) - write operations still require authentication.
+    WARNING: This makes all recipe data public. Only enable on self-hosted instances
+    where privacy is not a concern.
+    """
+
     DAILY_SCHEDULE_TIME: str = "23:45"
     """Local server time, in HH:MM format. See `DAILY_SCHEDULE_TIME_UTC` for the parsed UTC equivalent"""
 
