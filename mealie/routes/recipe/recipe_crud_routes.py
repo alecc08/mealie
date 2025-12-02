@@ -331,9 +331,7 @@ class RecipeController(BaseRecipeController):
         # When GLOBAL_PUBLIC_RECIPES is enabled and user is None (anonymous), return suggestions without user filtering
         if self.user is None:
             # Anonymous access - use ungrouped repos
-            group_recipes = get_repositories(
-                self.session, group_id=None, household_id=None
-            ).recipes
+            group_recipes = get_repositories(self.session, group_id=None, household_id=None).recipes
             recipes = group_recipes.find_suggested_recipes(q, foods, tools)
         else:
             # Authenticated access - existing behavior with user-specific data

@@ -37,12 +37,7 @@ class OptionalUserAPIRouter(APIRouter):
     def __init__(self, tags: list[str | Enum] | None = None, prefix: str = "", **kwargs):
         from mealie.core.dependencies import get_current_user_or_anonymous
 
-        super().__init__(
-            tags=tags,
-            prefix=prefix,
-            dependencies=[Depends(get_current_user_or_anonymous)],
-            **kwargs
-        )
+        super().__init__(tags=tags, prefix=prefix, dependencies=[Depends(get_current_user_or_anonymous)], **kwargs)
 
 
 class MealieCrudRoute(APIRoute):

@@ -8,9 +8,7 @@ from sqlalchemy.orm import Session
 from mealie.core.config import get_app_dirs, get_app_settings
 from mealie.core.dependencies.dependencies import (
     get_admin_user,
-    get_current_user,
     get_current_user_or_anonymous,
-    get_integration_id,
     get_integration_id_or_default,
     get_public_group,
 )
